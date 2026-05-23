@@ -16,7 +16,7 @@ const anthropic = new Anthropic({
   dangerouslyAllowBrowser: true,
 });
 
-export default function OnboardingScreen({ session }) {
+export default function OnboardingScreen({ session, onComplete }) {
   const [pillars, setPillars] = useState([]);
   const [selected, setSelected] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -106,6 +106,8 @@ export default function OnboardingScreen({ session }) {
       setSaving(false);
     } else {
       setSaved(true);
+      const chosenPillars = pillars.filter(p => selected.includes(p.id));
+      onComplete(chosenPillars);
     }
   }
 

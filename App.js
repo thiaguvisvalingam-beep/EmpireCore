@@ -3,10 +3,13 @@ import { View, Text, StyleSheet } from 'react-native';
 import { supabase } from './lib/supabase';
 import LoginScreen from './screens/LoginScreen';
 import OnboardingScreen from './screens/OnboardingScreen';
+import StarterScreen from './screens/StarterScreen';
 
 export default function App() {
   const [session, setSession] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [screen, setScreen] = useState('onboarding');
+  const [chosenPillars, setChosenPillars] = useState([]);
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
@@ -33,7 +36,33 @@ export default function App() {
     return <LoginScreen />;
   }
 
-  return <OnboardingScreen session={session} />;
+  if (screen === 'onboarding') {
+    return (
+      <OnboardingScreen
+        session={session}
+        onComplete={(pillars) => {
+          setChosenPillars(pillars);
+          setScreen('starter');
+        }}
+      />
+    );
+  }
+
+  if (screen === 'starter') {
+    return (
+      <StarterScreen
+        session={session}
+        chosenPillars={chosenPillars}
+        onComplete={() => setScreen('home')}
+      />
+    );
+  }
+
+  return (
+    <View style={styles.container}>
+      <Text style={styles.text}>Your Empire starts here.</Text>
+    </View>
+  );
 }
 
 const styles = StyleSheet.create({

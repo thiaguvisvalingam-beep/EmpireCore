@@ -6,8 +6,15 @@ import {
   TouchableOpacity,
   StyleSheet,
   ActivityIndicator,
+  ScrollView,
 } from 'react-native';
+import Anthropic from '@anthropic-ai/sdk';
 import { supabase } from '../lib/supabase';
+
+const anthropic = new Anthropic({
+  apiKey: process.env.EXPO_PUBLIC_ANTHROPIC_API_KEY,
+  dangerouslyAllowBrowser: true,
+});
 
 export default function OnboardingScreen({ session }) {
   const [pillars, setPillars] = useState([]);
@@ -15,6 +22,9 @@ export default function OnboardingScreen({ session }) {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
+  const [aiMessage, setAiMessage] = useState(null);
+  const [aiLoading, setAiLoading] = useState(false);
+  const [aiDismissed, setAiDismissed] = useState(false);
 
   useEffect(() => {
     async function fetchPillars() {
@@ -34,10 +44,46 @@ export default function OnboardingScreen({ session }) {
     fetchPillars();
   }, []);
 
-  function togglePillar(id) {
-    setSelected(prev =>
-      prev.includes(id) ? prev.filter(p => p !== id) : [...prev, id]
-    );
+  async function togglePillar(id) {
+    const newSelected = selected.includes(id)
+      ? selected.filter(p => p !== id)
+      : [...selected, id];
+
+    setSelected(newSelected);
+
+    if (newSelected.length > 7 && !aiDismissed) {
+      setAiLoading(true);
+      setAiMessage(null);
+
+      const selectedNames = pillars
+        .filter(p => newSelected.includes(p.id))
+        .map(p => p.name)
+        .join(', ');
+
+      try {
+        const response = await anthropic.messages.create({
+          model: 'claude-sonnet-4-6',
+          max_tokens: 200,
+          messages: [
+            {
+              role: 'user',
+              content: `The user is setting up their life operating system and has chosen ${newSelected.length} pillars: ${selectedNames}.
+              Write a short, direct message (2-3 sentences max) in the style of a no-nonsense mentor.
+              Tell them that choosing too many pillars at once is fragmentation, not ambition.
+              Suggest they anchor on 7. Be direct but not harsh. Do not use bullet points.`,
+            },
+          ],
+        });
+
+        setAiMessage(response.content[0].text);
+      } catch (err) {
+        console.log('AI error:', err.message);
+      }
+
+      setAiLoading(false);
+    } else if (newSelected.length <= 7) {
+      setAiMessage(null);
+    }
   }
 
   async function handleContinue() {
@@ -77,6 +123,29 @@ export default function OnboardingScreen({ session }) {
       <Text style={styles.subtitle}>
         Select the areas of life you want to build your empire around.
       </Text>
+
+      {aiLoading && (
+        <View style={styles.aiBox}>
+          <ActivityIndicator color="#818cf8" size="small" />
+          <Text style={styles.aiLoadingText}>Getting guidance...</Text>
+        </View>
+      )}
+
+      {aiMessage && !aiLoading && (
+        <View style={styles.aiBox}>
+          <Text style={styles.aiLabel}>Empire Advisor</Text>
+          <Text style={styles.aiMessage}>{aiMessage}</Text>
+          <TouchableOpacity
+            style={styles.aiDismiss}
+            onPress={() => {
+              setAiMessage(null);
+              setAiDismissed(true);
+            }}
+          >
+            <Text style={styles.aiDismissText}>Override — keep my selection</Text>
+          </TouchableOpacity>
+        </View>
+      )}
 
       <FlatList
         data={pillars}
@@ -146,6 +215,45 @@ const styles = StyleSheet.create({
     fontSize: 15,
     color: '#888888',
     marginBottom: 24,
+  },
+  aiBox: {
+    backgroundColor: '#12122a',
+    borderWidth: 1,
+    borderColor: '#4f46e5',
+    borderRadius: 12,
+    padding: 16,
+    marginBottom: 16,
+  },
+  aiLabel: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#4f46e5',
+    letterSpacing: 1,
+    marginBottom: 8,
+    textTransform: 'uppercase',
+  },
+  aiLoadingText: {
+    color: '#818cf8',
+    fontSize: 14,
+    marginLeft: 8,
+  },
+  aiMessage: {
+    color: '#e0e0ff',
+    fontSize: 14,
+    lineHeight: 22,
+    marginBottom: 12,
+  },
+  aiDismiss: {
+    alignSelf: 'flex-start',
+    borderWidth: 1,
+    borderColor: '#4f46e5',
+    borderRadius: 6,
+    paddingVertical: 6,
+    paddingHorizontal: 12,
+  },
+  aiDismissText: {
+    color: '#818cf8',
+    fontSize: 13,
   },
   grid: {
     paddingBottom: 24,
